@@ -184,6 +184,7 @@ describe('regression #8306: persistOperation$ stream survives write failures', (
     expect(snackSpy.open).toHaveBeenCalledWith(
       jasmine.objectContaining({ type: 'ERROR', msg: T.F.SYNC.S.PERSIST_FAILED }),
     );
+    expect(captureService.getWriteFailureCount()).toBe(1);
 
     sub.unsubscribe();
   });

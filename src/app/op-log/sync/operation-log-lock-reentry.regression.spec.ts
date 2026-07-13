@@ -111,6 +111,9 @@ describe('regression #7700: operation-log lock reentry', () => {
     const operationCaptureSpy = jasmine.createSpyObj('OperationCaptureService', [
       'extractEntityChanges',
       'decrementPending',
+      'recordWriteFailure',
+      'recordDeferredWriteFailure',
+      'resolveDeferredWriteFailure',
     ]);
     operationCaptureSpy.extractEntityChanges.and.returnValue([]);
 

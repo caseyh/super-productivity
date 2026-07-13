@@ -149,6 +149,7 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
     try {
       await this.writeOperation(action);
     } catch (e) {
+      this.operationCaptureService.recordWriteFailure();
       // Already surfaced to the user inside writeOperation; swallow so the
       // shared effect stream is never torn down by a single failed write.
       OpLog.err('OperationLogEffects: persist failed (handled; stream preserved)', e);
@@ -202,6 +203,9 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
       devError(
         `[OperationLogEffects] Action ${action.type} has invalid entityId/entityIds (${action.meta.entityId}) - skipping persistence`,
       );
+      // Reducers already accepted this local action, so a non-throwing skip
+      // still leaves live state ahead of the durable op-log.
+      this.operationCaptureService.recordWriteFailure();
       return;
     }
 
@@ -310,6 +314,7 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
               `Deferred action ${action.type} has an invalid payload.`,
             );
           }
+          this.operationCaptureService.recordWriteFailure();
           this.snackService.open({
             type: 'ERROR',
             msg: T.F.SYNC.S.INVALID_OPERATION_PAYLOAD,
@@ -683,6 +688,7 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
   ): Promise<void> {
     const deferredActions = getDeferredActions();
     if (deferredActions.length === 0) {
+      this.operationCaptureService.resolveDeferredWriteFailure();
       return;
     }
 
@@ -758,6 +764,7 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
     }
 
     if (failure) {
+      this.operationCaptureService.recordDeferredWriteFailure();
       const isPermanent = failure instanceof PermanentDeferredWriteError;
       this.snackService.open({
         type: 'ERROR',
@@ -781,5 +788,7 @@ export class OperationLogEffects implements DeferredLocalActionsPort {
         { cause: failure },
       );
     }
+
+    this.operationCaptureService.resolveDeferredWriteFailure();
   }
 }

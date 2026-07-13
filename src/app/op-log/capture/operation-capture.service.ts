@@ -46,6 +46,16 @@ export class OperationCaptureService {
    */
   private pendingCount = 0;
 
+  /** Monotonic checkpoint for effect-path persistence failures. */
+  private writeFailureCount = 0;
+
+  /**
+   * Deferred actions remain buffered after a failed drain and can recover on a
+   * later attempt. Keep that recoverable failure separate from the monotonic
+   * effect-path checkpoint so consumers can unblock once the buffer is durable.
+   */
+  private hasDeferredWriteFailure = false;
+
   /**
    * Tracks if we've already warned about the pending counter growing large,
    * to avoid log spam.
@@ -118,11 +128,33 @@ export class OperationCaptureService {
     return this.pendingCount;
   }
 
+  recordWriteFailure(): void {
+    this.writeFailureCount++;
+  }
+
+  getWriteFailureCount(): number {
+    return this.writeFailureCount;
+  }
+
+  recordDeferredWriteFailure(): void {
+    this.hasDeferredWriteFailure = true;
+  }
+
+  resolveDeferredWriteFailure(): void {
+    this.hasDeferredWriteFailure = false;
+  }
+
+  hasUnresolvedWriteFailure(): boolean {
+    return this.writeFailureCount > 0 || this.hasDeferredWriteFailure;
+  }
+
   /**
    * Resets the pending counter (for testing and error recovery).
    */
   clear(): void {
     this.pendingCount = 0;
+    this.writeFailureCount = 0;
+    this.hasDeferredWriteFailure = false;
     this.hasWarnedAboutPending = false;
   }
 

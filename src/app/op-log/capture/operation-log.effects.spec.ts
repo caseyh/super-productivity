@@ -10,7 +10,7 @@ import { VectorClockService } from '../sync/vector-clock.service';
 import { OperationLogCompactionService } from '../persistence/operation-log-compaction.service';
 import { SnackService } from '../../core/snack/snack.service';
 import { ImmediateUploadService } from '../sync/immediate-upload.service';
-import { ActionType, OpType } from '../core/operation.types';
+import { ActionType, EntityChange, OpType } from '../core/operation.types';
 import { PersistentAction } from '../core/persistent-action.interface';
 import { COMPACTION_THRESHOLD } from '../core/operation-log.const';
 import {
@@ -23,6 +23,7 @@ import { OperationCaptureService } from './operation-capture.service';
 import { TaskSharedActions } from '../../root-store/meta/task-shared.actions';
 import { T } from '../../t.const';
 import { updateGlobalConfigSection } from '../../features/config/store/global-config.actions';
+import { _resetDevErrorState } from '../../util/dev-error';
 
 describe('OperationLogEffects', () => {
   let effects: OperationLogEffects;
@@ -79,6 +80,9 @@ describe('OperationLogEffects', () => {
     mockOperationCaptureService = jasmine.createSpyObj('OperationCaptureService', [
       'extractEntityChanges',
       'decrementPending',
+      'recordWriteFailure',
+      'recordDeferredWriteFailure',
+      'resolveDeferredWriteFailure',
     ]);
 
     // Default mock implementations
@@ -166,6 +170,40 @@ describe('OperationLogEffects', () => {
       effects.persistOperation$.subscribe({
         complete: () => {
           expect(mockOpLogStore.appendWithVectorClockUpdate).not.toHaveBeenCalled();
+          done();
+        },
+      });
+    });
+
+    it('should record a non-throwing invalid-identifier persistence skip', (done) => {
+      _resetDevErrorState();
+      (window.confirm as jasmine.Spy).and.returnValue(false);
+      const action = createPersistentAction(ActionType.TASK_SHARED_UPDATE);
+      (action.meta as { entityId?: string }).entityId = '';
+      actions$ = of(action);
+
+      effects.persistOperation$.subscribe({
+        complete: () => {
+          expect(mockOpLogStore.appendWithVectorClockUpdate).not.toHaveBeenCalled();
+          expect(mockOperationCaptureService.recordWriteFailure).toHaveBeenCalledTimes(1);
+          expect(mockOperationCaptureService.decrementPending).toHaveBeenCalledTimes(1);
+          done();
+        },
+      });
+    });
+
+    it('should record an invalid-payload persistence skip', (done) => {
+      mockOperationCaptureService.extractEntityChanges.and.returnValue([
+        {} as EntityChange,
+      ]);
+      const action = createPersistentAction(ActionType.TASK_SHARED_UPDATE);
+      actions$ = of(action);
+
+      effects.persistOperation$.subscribe({
+        complete: () => {
+          expect(mockOpLogStore.appendWithVectorClockUpdate).not.toHaveBeenCalled();
+          expect(mockOperationCaptureService.recordWriteFailure).toHaveBeenCalledTimes(1);
+          expect(mockOperationCaptureService.decrementPending).toHaveBeenCalledTimes(1);
           done();
         },
       });
@@ -899,6 +937,9 @@ describe('OperationLogEffects', () => {
       // never written out of order and both remain buffered.
       expect(mockOpLogStore.appendWithVectorClockUpdate).toHaveBeenCalledTimes(3);
       expect(getDeferredActions()).toEqual([failedAction, successorAction]);
+      expect(
+        mockOperationCaptureService.recordDeferredWriteFailure,
+      ).toHaveBeenCalledTimes(1);
       expect(mockSnackService.open).toHaveBeenCalledWith(
         jasmine.objectContaining({
           msg: T.F.SYNC.S.DEFERRED_ACTION_FAILED,
@@ -916,6 +957,9 @@ describe('OperationLogEffects', () => {
       expect(calls[0].args[0].actionType).toBe(ActionType.TASK_SHARED_ADD);
       expect(calls[1].args[0].actionType).toBe(ActionType.TASK_SHARED_UPDATE);
       expect(getDeferredActions()).toEqual([]);
+      expect(
+        mockOperationCaptureService.resolveDeferredWriteFailure,
+      ).toHaveBeenCalledTimes(1);
     });
 
     it('should block and keep a permanently invalid deferred action with its successors', async () => {
@@ -933,6 +977,9 @@ describe('OperationLogEffects', () => {
       // its successor may be discarded or persisted out of order.
       expect(mockOpLogStore.appendWithVectorClockUpdate).not.toHaveBeenCalled();
       expect(getDeferredActions()).toEqual([invalidAction, validAction]);
+      expect(
+        mockOperationCaptureService.recordDeferredWriteFailure,
+      ).toHaveBeenCalledTimes(1);
       expect(mockSnackService.open).toHaveBeenCalledWith(
         jasmine.objectContaining({
           msg: T.F.SYNC.S.DEFERRED_ACTION_PERMANENT_FAILED,

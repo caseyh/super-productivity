@@ -86,6 +86,29 @@ describe('OperationCaptureService', () => {
     });
   });
 
+  describe('write failure checkpoint', () => {
+    it('increments on failed persistence and resets on clear', () => {
+      expect(service.getWriteFailureCount()).toBe(0);
+      expect(service.hasUnresolvedWriteFailure()).toBeFalse();
+
+      service.recordWriteFailure();
+      expect(service.getWriteFailureCount()).toBe(1);
+      expect(service.hasUnresolvedWriteFailure()).toBeTrue();
+
+      service.clear();
+      expect(service.getWriteFailureCount()).toBe(0);
+      expect(service.hasUnresolvedWriteFailure()).toBeFalse();
+    });
+
+    it('clears a recoverable deferred-write failure after a later successful drain', () => {
+      service.recordDeferredWriteFailure();
+      expect(service.hasUnresolvedWriteFailure()).toBeTrue();
+
+      service.resolveDeferredWriteFailure();
+      expect(service.hasUnresolvedWriteFailure()).toBeFalse();
+    });
+  });
+
   describe('extractEntityChanges', () => {
     it('should return empty entityChanges for regular actions', () => {
       const action = createPersistentAction(
