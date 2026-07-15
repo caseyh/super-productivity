@@ -104,7 +104,10 @@ describe('TaskDetailPanelComponent paste handler', () => {
         { provide: MatDialog, useValue: mockMatDialog },
         { provide: DateTimeFormatService, useValue: mockDateTimeFormatService },
         { provide: Store, useValue: mockStore },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     }).compileComponents();
 
@@ -272,7 +275,10 @@ describe('TaskDetailPanelComponent stale-focus guard', () => {
         { provide: MatDialog, useValue: {} },
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       // Drop the real template/child components — only the focus timing logic is under test.
@@ -388,7 +394,10 @@ describe('TaskDetailPanelComponent notes target does not auto-edit', () => {
         { provide: MatDialog, useValue: {} },
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       .overrideComponent(TaskDetailPanelComponent, {
@@ -477,7 +486,10 @@ describe('TaskDetailPanelComponent add sub-task', () => {
         { provide: MatDialog, useValue: {} },
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       .overrideComponent(TaskDetailPanelComponent, {

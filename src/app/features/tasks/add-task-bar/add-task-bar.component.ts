@@ -28,7 +28,6 @@ import { expandFadeAnimation } from '../../../ui/animations/expand.ani';
 import { TaskCopy, TaskReminderOptionId } from '../task.model';
 import { TaskService } from '../task.service';
 import { SectionService } from '../../section/section.service';
-import { selectAllSections } from '../../section/store/section.selectors';
 import { WorkContextService } from '../../work-context/work-context.service';
 import { WorkContext, WorkContextType } from '../../work-context/work-context.model';
 import { ProjectService } from '../../project/project.service';
@@ -274,34 +273,8 @@ export class AddTaskBarComponent implements AfterViewInit, OnInit, OnDestroy {
     () => this.stateService.state().projectId,
   );
 
-  mentionCfg$ = combineLatest([
-    inject(MentionConfigService).mentionConfig$,
+  mentionCfg$ = inject(MentionConfigService).mentionConfigWithSections$(
     toObservable(this._sectionMentionProjectId),
-    this._store.select(selectAllSections),
-  ]).pipe(
-    map(([cfg, sectionProjectId, allSections]) => {
-      const sections = sectionProjectId
-        ? allSections.filter((s) => s.contextId === sectionProjectId)
-        : [];
-      if (!sections.length) {
-        return cfg;
-      }
-      return {
-        ...cfg,
-        mentions: [
-          ...(cfg.mentions || []),
-          {
-            items: sections.map((s) => ({
-              title: s.title,
-              id: s.id,
-              icon: 'view_agenda',
-            })),
-            labelKey: 'title',
-            triggerChar: '/',
-          },
-        ],
-      };
-    }),
   );
 
   // View children

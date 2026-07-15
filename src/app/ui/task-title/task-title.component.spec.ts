@@ -11,7 +11,12 @@ describe('TaskTitleComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TaskTitleComponent, TranslateModule.forRoot()],
-      providers: [{ provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } }],
+      providers: [
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TaskTitleComponent);
