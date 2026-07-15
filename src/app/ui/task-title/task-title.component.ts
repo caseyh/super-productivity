@@ -19,6 +19,7 @@ import { Log } from '../../core/log';
 import { MentionConfig, MentionModule } from '../mentions';
 import { AsyncPipe } from '@angular/common';
 import { Observable } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { MentionConfigService } from '../../features/tasks/mention-config.service';
 import { hasLinkHints, RenderLinksPipe } from '../pipes/render-links.pipe';
 import { SubmitTrigger } from 'src/app/features/tasks/task.model';
@@ -44,11 +45,19 @@ export class TaskTitleComponent implements OnDestroy {
   private static readonly _DEFAULT_SUBMIT_TRIGGER = 'blur' as const;
   T: typeof T = T;
 
-  // short-syntax autocomplete config shared across all editor instances
-  mentionCfg$: Observable<MentionConfig> = inject(MentionConfigService).mentionConfig$;
-
   private readonly _isMentionListShown = signal(false);
   readonly readonly = input<boolean>(false); // When true, disables editing and only displays the value
+
+  // Project whose sections the "/" mention should suggest — the task's own
+  // project when editing an existing task's title. Optional: without it the
+  // base config (no "/" mention) is used. Cheap despite one instance per task
+  // row: the template only subscribes while actually editing.
+  readonly sectionProjectId = input<string | null>(null);
+
+  // short-syntax autocomplete config shared across all editor instances
+  mentionCfg$: Observable<MentionConfig> = inject(
+    MentionConfigService,
+  ).mentionConfigWithSections$(toObservable(this.sectionProjectId));
 
   // Reset value only if user is not currently editing (prevents overwriting edits during sync)
   @Input() set resetToLastExternalValueTrigger(value: unknown) {

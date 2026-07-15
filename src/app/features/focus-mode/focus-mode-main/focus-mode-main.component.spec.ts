@@ -154,7 +154,10 @@ describe('FocusModeMainComponent', () => {
         { provide: SimpleCounterService, useValue: simpleCounterServiceSpy },
         { provide: FocusModeService, useValue: focusModeServiceSpy },
         { provide: MatDialog, useValue: mockMatDialog },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       .overrideComponent(FocusModeMainComponent, {
@@ -788,7 +791,10 @@ describe('FocusModeMainComponent - notes panel (issue #5752)', () => {
         { provide: SimpleCounterService, useValue: simpleCounterServiceSpy },
         { provide: FocusModeService, useValue: focusModeServiceMock },
         { provide: MatDialog, useValue: mockMatDialog },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       .overrideComponent(FocusModeMainComponent, {
@@ -1032,7 +1038,10 @@ describe('FocusModeMainComponent - sync with tracking (issue #6009)', () => {
         { provide: SimpleCounterService, useValue: simpleCounterServiceSpy },
         { provide: FocusModeService, useValue: focusModeServiceMock },
         { provide: MatDialog, useValue: mockMatDialog },
-        { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: MentionConfigService,
+          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+        },
       ],
     })
       .overrideComponent(FocusModeMainComponent, {

@@ -274,34 +274,8 @@ export class AddTaskBarComponent implements AfterViewInit, OnInit, OnDestroy {
     () => this.stateService.state().projectId,
   );
 
-  mentionCfg$ = combineLatest([
-    inject(MentionConfigService).mentionConfig$,
+  mentionCfg$ = inject(MentionConfigService).mentionConfigWithSections$(
     toObservable(this._sectionMentionProjectId),
-    this._store.select(selectAllSections),
-  ]).pipe(
-    map(([cfg, sectionProjectId, allSections]) => {
-      const sections = sectionProjectId
-        ? allSections.filter((s) => s.contextId === sectionProjectId)
-        : [];
-      if (!sections.length) {
-        return cfg;
-      }
-      return {
-        ...cfg,
-        mentions: [
-          ...(cfg.mentions || []),
-          {
-            items: sections.map((s) => ({
-              title: s.title,
-              id: s.id,
-              icon: 'view_agenda',
-            })),
-            labelKey: 'title',
-            triggerChar: '/',
-          },
-        ],
-      };
-    }),
   );
 
   // View children

@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
+import { Store } from '@ngrx/store';
 import { combineLatest, Observable } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
+import { selectAllSections } from '../section/store/section.selectors';
 import { MentionConfig, Mentions } from '../../ui/mentions/mention-config';
 import { GlobalConfigService } from '../config/global-config.service';
 import { TagService } from '../tag/tag.service';
@@ -34,6 +36,50 @@ export class MentionConfigService {
   private readonly _globalConfigService = inject(GlobalConfigService);
   private readonly _tagService = inject(TagService);
   private readonly _projectService = inject(ProjectService);
+  private readonly _store = inject(Store);
+
+  /**
+   * The base config plus a "/" mention listing the sections of the project
+   * emitted by `projectId$` (the project a "/Section" token would resolve
+   * against — the add bar's effective project, or an edited task's own).
+   * Emits the plain base config while there is no project or it has no
+   * sections, so "/" stays inert exactly when the parser would ignore it.
+   */
+  mentionConfigWithSections$(
+    projectId$: Observable<string | null | undefined>,
+  ): Observable<MentionConfig> {
+    return combineLatest([
+      this.mentionConfig$,
+      projectId$,
+      this._store.select(selectAllSections),
+    ]).pipe(
+      map(([cfg, projectId, allSections]) => {
+        const sections = projectId
+          ? allSections.filter((s) => s.contextId === projectId)
+          : [];
+        if (!sections.length) {
+          return cfg;
+        }
+        return {
+          ...cfg,
+          mentions: [
+            ...(cfg.mentions || []),
+            {
+              items: sections.map(
+                (s): MentionListItem => ({
+                  title: s.title,
+                  id: s.id,
+                  icon: 'view_agenda',
+                }),
+              ),
+              labelKey: 'title',
+              triggerChar: '/',
+            },
+          ],
+        };
+      }),
+    );
+  }
 
   readonly mentionConfig$: Observable<MentionConfig> = combineLatest([
     this._globalConfigService.shortSyntax$,

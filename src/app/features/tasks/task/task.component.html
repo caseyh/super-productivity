@@ -37,6 +37,7 @@
 
           <task-title
             [resetToLastExternalValueTrigger]="t"
+            [sectionProjectId]="t.projectId || null"
             [style.pointer-events]="isTouchActive() && t.title.length ? 'none' : 'auto'"
             #taskTitleEditEl
             (valueEdited)="updateTaskTitleIfChanged($event)"
