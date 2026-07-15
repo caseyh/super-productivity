@@ -58,6 +58,104 @@ describe('shortSyntaxSharedMetaReducer', () => {
     });
   });
 
+  describe('applyShortSyntax action - section placement', () => {
+    const stateWithSections = (
+      testState: RootState,
+      sections: { id: string; taskIds: string[] }[],
+    ): RootState =>
+      ({
+        ...testState,
+        section: {
+          ids: sections.map((s) => s.id),
+          entities: Object.fromEntries(
+            sections.map((s) => [
+              s.id,
+              {
+                id: s.id,
+                contextId: 'project1',
+                contextType: 'PROJECT',
+                title: s.id,
+                taskIds: s.taskIds,
+              },
+            ]),
+          ),
+        },
+      }) as RootState;
+
+    it('should place the task into the target section', () => {
+      const testState = stateWithSections(
+        createStateWithExistingTasks(['task1'], [], [], []),
+        [{ id: 'sectionA', taskIds: [] }],
+      );
+      const task = createMockTask({ id: 'task1', projectId: 'project1' });
+      const action = TaskSharedActions.applyShortSyntax({
+        task,
+        taskChanges: { title: 'Updated' },
+        targetSectionId: 'sectionA',
+      });
+
+      metaReducer(testState, action);
+      const resultState = mockReducer.calls.mostRecent().args[0];
+      expect(resultState.section.entities.sectionA.taskIds).toEqual(['task1']);
+    });
+
+    it('should remove the task from its previous section when moving', () => {
+      const testState = stateWithSections(
+        createStateWithExistingTasks(['task1'], [], [], []),
+        [
+          { id: 'sectionA', taskIds: ['task1'] },
+          { id: 'sectionB', taskIds: ['other'] },
+        ],
+      );
+      const task = createMockTask({ id: 'task1', projectId: 'project1' });
+      const action = TaskSharedActions.applyShortSyntax({
+        task,
+        taskChanges: { title: 'Updated' },
+        targetSectionId: 'sectionB',
+      });
+
+      metaReducer(testState, action);
+      const resultState = mockReducer.calls.mostRecent().args[0];
+      expect(resultState.section.entities.sectionA.taskIds).toEqual([]);
+      expect(resultState.section.entities.sectionB.taskIds).toContain('task1');
+      expect(resultState.section.entities.sectionB.taskIds).toContain('other');
+    });
+
+    it('should leave state untouched when the target section does not exist', () => {
+      const testState = stateWithSections(
+        createStateWithExistingTasks(['task1'], [], [], []),
+        [{ id: 'sectionA', taskIds: [] }],
+      );
+      const task = createMockTask({ id: 'task1', projectId: 'project1' });
+      const action = TaskSharedActions.applyShortSyntax({
+        task,
+        taskChanges: { title: 'Updated' },
+        targetSectionId: 'nonexistent',
+      });
+
+      metaReducer(testState, action);
+      const resultState = mockReducer.calls.mostRecent().args[0];
+      expect(resultState.section.entities.sectionA.taskIds).toEqual([]);
+    });
+
+    it('should not duplicate the task when already in the target section', () => {
+      const testState = stateWithSections(
+        createStateWithExistingTasks(['task1'], [], [], []),
+        [{ id: 'sectionA', taskIds: ['task1'] }],
+      );
+      const task = createMockTask({ id: 'task1', projectId: 'project1' });
+      const action = TaskSharedActions.applyShortSyntax({
+        task,
+        taskChanges: { title: 'Updated' },
+        targetSectionId: 'sectionA',
+      });
+
+      metaReducer(testState, action);
+      const resultState = mockReducer.calls.mostRecent().args[0];
+      expect(resultState.section.entities.sectionA.taskIds).toEqual(['task1']);
+    });
+  });
+
   describe('applyShortSyntax action - project move', () => {
     it('should move task to target project', () => {
       // Create state with task in project1 and a project2

@@ -435,6 +435,9 @@ export const TaskSharedActions = createActionGroup({
       task: Task;
       taskChanges: Partial<Task>;
       targetProjectId?: string;
+      // Section to place the task into (from "+Project/Section" or "/Section"
+      // in the edited title) — applied atomically with the other changes.
+      targetSectionId?: string;
       schedulingInfo?: {
         day?: string;
         isAddToTop?: boolean;
