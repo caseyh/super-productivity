@@ -1,6 +1,7 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideMockActions } from '@ngrx/effects/testing';
-import { provideMockStore } from '@ngrx/store/testing';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
+import { selectAllSections } from '../../section/store/section.selectors';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 import { ShortSyntaxEffects } from './short-syntax.effects';
 import { TaskSharedActions } from '../../../root-store/meta/task-shared.actions';
@@ -120,7 +121,9 @@ describe('ShortSyntaxEffects', () => {
       providers: [
         ShortSyntaxEffects,
         provideMockActions(() => actions$),
-        provideMockStore(),
+        provideMockStore({
+          selectors: [{ selector: selectAllSections, value: [] }],
+        }),
         { provide: TaskService, useValue: taskServiceMock },
         { provide: TagService, useValue: tagServiceMock },
         { provide: ProjectService, useValue: projectServiceMock },
@@ -208,6 +211,41 @@ describe('ShortSyntaxEffects', () => {
       expect(emittedAction.type).toBe(TaskSharedActions.applyShortSyntax.type);
       expect(emittedAction.taskChanges.timeEstimate).toBe(15 * 60 * 1000);
       expect(emittedAction.taskChanges.title).toBe('Buy milk');
+    }));
+
+    it('should resolve a standalone /Section on title edit against the task project', fakeAsync(() => {
+      const store = TestBed.inject(MockStore);
+      store.overrideSelector(selectAllSections, [
+        {
+          id: 'sec-1',
+          contextId: 'project-1',
+          contextType: WorkContextType.PROJECT,
+          title: 'Design',
+          taskIds: [],
+        },
+      ]);
+      store.refreshState();
+
+      const task = createTask('task-1', { title: 'Review mockups /Design' });
+      taskServiceMock.getByIdOnce$.and.returnValue(of(task));
+
+      let emittedAction: any = null;
+      effects.shortSyntax$.subscribe((action) => {
+        emittedAction = action;
+      });
+
+      actions$.next(
+        TaskSharedActions.updateTask({
+          task: { id: 'task-1', changes: { title: 'Review mockups /Design' } },
+        }),
+      );
+
+      tick(100);
+
+      expect(emittedAction).toBeDefined();
+      expect(emittedAction.type).toBe(TaskSharedActions.applyShortSyntax.type);
+      expect(emittedAction.targetSectionId).toBe('sec-1');
+      expect(emittedAction.taskChanges.title).toBe('Review mockups');
     }));
 
     it('should NOT parse short syntax for addSubTask when isIgnoreShortSyntax is true', fakeAsync(() => {

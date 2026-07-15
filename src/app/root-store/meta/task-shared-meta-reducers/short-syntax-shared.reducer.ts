@@ -31,9 +31,71 @@ import {
   reCalcTimeEstimateForParentIfParent,
   updateTimeSpentForTask,
 } from '../../../features/tasks/store/task.reducer.util';
+import {
+  adapter as sectionAdapter,
+  SECTION_FEATURE_NAME,
+} from '../../../features/section/store/section.reducer';
+import { SectionState } from '../../../features/section/section.model';
+import { moveItemAfterAnchor } from '../../../features/work-context/store/work-context-meta.helper';
 
 // Type for mutable task changes within the reducer
 type MutableTaskChanges = { -readonly [K in keyof Task]?: Task[K] };
+
+// Section state lives outside RootState's typing (feature-registered);
+// same pattern as section-shared.reducer.ts.
+interface StateWithSections extends RootState {
+  [SECTION_FEATURE_NAME]: SectionState;
+}
+
+/**
+ * Atomically place the task into `targetSectionId`: strip it from whatever
+ * section currently holds it, then insert at the top of the target (same
+ * position semantics as SectionActions.addTaskToSection with a null anchor).
+ * No-ops when the target section doesn't exist or already holds the task
+ * at the wanted state.
+ */
+const moveTaskToSection = (
+  state: RootState,
+  taskId: string,
+  targetSectionId: string,
+): RootState => {
+  const sectionState = (state as StateWithSections)[SECTION_FEATURE_NAME];
+  if (!sectionState) {
+    return state;
+  }
+  const target = sectionState.entities[targetSectionId];
+  if (!target) {
+    return state;
+  }
+
+  const updates: Update<import('../../../features/section/section.model').Section>[] = [];
+  for (const id of sectionState.ids as string[]) {
+    const s = sectionState.entities[id];
+    if (s && s.id !== targetSectionId && s.taskIds.includes(taskId)) {
+      updates.push({
+        id: s.id,
+        changes: { taskIds: s.taskIds.filter((t) => t !== taskId) },
+      });
+    }
+  }
+
+  if (!target.taskIds.includes(taskId)) {
+    updates.push({
+      id: target.id,
+      changes: {
+        taskIds: moveItemAfterAnchor(taskId, null, [...target.taskIds, taskId]),
+      },
+    });
+  }
+
+  if (!updates.length) {
+    return state;
+  }
+  return {
+    ...state,
+    [SECTION_FEATURE_NAME]: sectionAdapter.updateMany(updates, sectionState),
+  } as RootState;
+};
 
 interface SchedulingResult {
   state: RootState;
@@ -70,6 +132,7 @@ const handleApplyShortSyntax = (
     remindAt?: number | null;
     isMoveToBacklog?: boolean;
   },
+  targetSectionId?: string,
 ): RootState => {
   let updatedState = state;
   const currentTask = state[TASK_FEATURE_NAME].entities[task.id] as Task;
@@ -90,6 +153,12 @@ const handleApplyShortSyntax = (
       targetProjectId,
     );
     finalTaskChanges.projectId = targetProjectId;
+  }
+
+  // Step 1b: Place into a section (after the project move so the section
+  // belongs to the task's final project)
+  if (targetSectionId) {
+    updatedState = moveTaskToSection(updatedState, task.id, targetSectionId);
   }
 
   // Step 2: Handle scheduling
@@ -350,15 +419,15 @@ const handlePlanForDay = (
 
 const createActionHandlers = (state: RootState, action: Action): ActionHandlerMap => ({
   [TaskSharedActions.applyShortSyntax.type]: () => {
-    const { task, taskChanges, targetProjectId, schedulingInfo } = action as ReturnType<
-      typeof TaskSharedActions.applyShortSyntax
-    >;
+    const { task, taskChanges, targetProjectId, schedulingInfo, targetSectionId } =
+      action as ReturnType<typeof TaskSharedActions.applyShortSyntax>;
     return handleApplyShortSyntax(
       state,
       task,
       taskChanges,
       targetProjectId,
       schedulingInfo,
+      targetSectionId,
     );
   },
 });
