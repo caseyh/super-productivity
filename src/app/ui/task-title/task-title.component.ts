@@ -5,6 +5,7 @@ import {
   ElementRef,
   HostListener,
   inject,
+  Injector,
   input,
   Input,
   OnDestroy,
@@ -18,7 +19,7 @@ import { IS_ANDROID_WEB_VIEW } from '../../util/is-android-web-view';
 import { Log } from '../../core/log';
 import { MentionConfig, MentionModule } from '../mentions';
 import { AsyncPipe } from '@angular/common';
-import { Observable } from 'rxjs';
+import { defer, Observable } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { MentionConfigService } from '../../features/tasks/mention-config.service';
 import { hasLinkHints, RenderLinksPipe } from '../pipes/render-links.pipe';
@@ -50,14 +51,25 @@ export class TaskTitleComponent implements OnDestroy {
 
   // Project whose sections the "/" mention should suggest — the task's own
   // project when editing an existing task's title. Optional: without it the
-  // base config (no "/" mention) is used. Cheap despite one instance per task
-  // row: the template only subscribes while actually editing.
+  // base config (no "/" mention) is used.
   readonly sectionProjectId = input<string | null>(null);
 
-  // short-syntax autocomplete config shared across all editor instances
-  mentionCfg$: Observable<MentionConfig> = inject(
-    MentionConfigService,
-  ).mentionConfigWithSections$(toObservable(this.sectionProjectId));
+  private readonly _injector = inject(Injector);
+  private readonly _mentionConfigService = inject(MentionConfigService);
+  private _mentionCfgSrc$?: Observable<MentionConfig>;
+
+  // Per-instance short-syntax autocomplete config, built lazily on first
+  // subscription: this component renders once per task row (hot path), and
+  // `toObservable` eagerly creates an effect + ReplaySubject per call — so it
+  // must only run once editing actually starts (the async pipe subscribes
+  // only while the edit textarea is rendered). The source is created once,
+  // reused across edits, and torn down with the component's injector.
+  readonly mentionCfg$: Observable<MentionConfig> = defer(
+    () =>
+      (this._mentionCfgSrc$ ??= this._mentionConfigService.mentionConfigWithSections$(
+        toObservable(this.sectionProjectId, { injector: this._injector }),
+      )),
+  );
 
   // Reset value only if user is not currently editing (prevents overwriting edits during sync)
   @Input() set resetToLastExternalValueTrigger(value: unknown) {

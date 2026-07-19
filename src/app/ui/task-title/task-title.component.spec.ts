@@ -7,14 +7,22 @@ import { MentionConfigService } from '../../features/tasks/mention-config.servic
 describe('TaskTitleComponent', () => {
   let component: TaskTitleComponent;
   let fixture: ComponentFixture<TaskTitleComponent>;
+  let mentionConfigWithSectionsSpy: jasmine.Spy;
 
   beforeEach(async () => {
+    mentionConfigWithSectionsSpy = jasmine
+      .createSpy('mentionConfigWithSections$')
+      .and.returnValue(EMPTY);
+
     await TestBed.configureTestingModule({
       imports: [TaskTitleComponent, TranslateModule.forRoot()],
       providers: [
         {
           provide: MentionConfigService,
-          useValue: { mentionConfig$: EMPTY, mentionConfigWithSections$: () => EMPTY },
+          useValue: {
+            mentionConfig$: EMPTY,
+            mentionConfigWithSections$: mentionConfigWithSectionsSpy,
+          },
         },
       ],
     }).compileComponents();
@@ -26,6 +34,21 @@ describe('TaskTitleComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  describe('mention config (hot-path laziness)', () => {
+    it('should not build the mention config at construction', () => {
+      // One instance per task row — the config source (and its toObservable
+      // effect) must only be created once editing starts.
+      expect(mentionConfigWithSectionsSpy).not.toHaveBeenCalled();
+    });
+
+    it('should build the mention config once on first subscription and reuse it', () => {
+      component.mentionCfg$.subscribe().unsubscribe();
+      component.mentionCfg$.subscribe().unsubscribe();
+
+      expect(mentionConfigWithSectionsSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('readonly mode', () => {
