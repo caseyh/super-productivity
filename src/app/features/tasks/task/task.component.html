@@ -35,9 +35,11 @@
             </div>
           }
 
+          <!-- sectionProjectId is null for sub-tasks: section.taskIds is
+               parent-only, so "/" section suggestions must not be offered -->
           <task-title
             [resetToLastExternalValueTrigger]="t"
-            [sectionProjectId]="t.projectId || null"
+            [sectionProjectId]="t.parentId ? null : t.projectId || null"
             [style.pointer-events]="isTouchActive() && t.title.length ? 'none' : 'auto'"
             #taskTitleEditEl
             (valueEdited)="updateTaskTitleIfChanged($event)"

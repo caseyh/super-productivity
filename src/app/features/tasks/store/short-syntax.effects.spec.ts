@@ -248,6 +248,45 @@ describe('ShortSyntaxEffects', () => {
       expect(emittedAction.taskChanges.title).toBe('Review mockups');
     }));
 
+    it('should NOT resolve a section for a sub-task title edit (section membership is parent-only)', fakeAsync(() => {
+      const store = TestBed.inject(MockStore);
+      store.overrideSelector(selectAllSections, [
+        {
+          id: 'sec-1',
+          contextId: 'project-1',
+          contextType: WorkContextType.PROJECT,
+          title: 'Design',
+          taskIds: [],
+        },
+      ]);
+      store.refreshState();
+
+      // Sub-tasks inherit the parent's projectId, so the parser would resolve
+      // the section — the effect must discard it (mirrors the project guard).
+      const task = createTask('sub-1', {
+        title: 'Review mockups /Design',
+        parentId: 'parent-1',
+      });
+      taskServiceMock.getByIdOnce$.and.returnValue(of(task));
+
+      let emittedAction: any = null;
+      effects.shortSyntax$.subscribe((action) => {
+        emittedAction = action;
+      });
+
+      actions$.next(
+        TaskSharedActions.updateTask({
+          task: { id: 'sub-1', changes: { title: 'Review mockups /Design' } },
+        }),
+      );
+
+      tick(100);
+
+      expect(emittedAction).toBeDefined();
+      expect(emittedAction.type).toBe(TaskSharedActions.applyShortSyntax.type);
+      expect(emittedAction.targetSectionId).toBeUndefined();
+    }));
+
     it('should NOT parse short syntax for addSubTask when isIgnoreShortSyntax is true', fakeAsync(() => {
       const task = createTask('sub-1', {
         title: 'Buy milk 15m',

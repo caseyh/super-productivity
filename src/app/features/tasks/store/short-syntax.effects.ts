@@ -251,11 +251,16 @@ export class ShortSyntaxEffects {
 
               // Only move when the parsed section differs from where the task
               // already sits — avoids no-op section churn in the op log.
+              // Never for sub-tasks: section.taskIds is parent-only (mirrors
+              // the project-move guard above; the section meta-reducer
+              // re-checks so both guards stay in lock-step).
               const currentSectionId = allSections.find((s) =>
                 s.taskIds.includes(task.id),
               )?.id;
               const targetSectionId =
-                r.sectionId && r.sectionId !== currentSectionId ? r.sectionId : undefined;
+                r.sectionId && !task.parentId && r.sectionId !== currentSectionId
+                  ? r.sectionId
+                  : undefined;
 
               actions.push(
                 TaskSharedActions.applyShortSyntax({

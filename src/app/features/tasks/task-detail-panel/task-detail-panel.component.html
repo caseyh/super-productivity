@@ -2,7 +2,7 @@
   <header class="task-title-wrapper">
     <task-title
       [resetToLastExternalValueTrigger]="task()"
-      [sectionProjectId]="task().projectId || null"
+      [sectionProjectId]="task().parentId ? null : task().projectId || null"
       (valueEdited)="updateTaskTitleIfChanged($event.wasChanged, $event.newVal)"
       [value]="task().title || ''"
       class="task-title"

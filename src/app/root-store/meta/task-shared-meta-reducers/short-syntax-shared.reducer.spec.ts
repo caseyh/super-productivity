@@ -138,6 +138,51 @@ describe('shortSyntaxSharedMetaReducer', () => {
       expect(resultState.section.entities.sectionA.taskIds).toEqual([]);
     });
 
+    it('should leave section.taskIds unchanged for a sub-task (parent-only invariant)', () => {
+      // A replayed/remote applyShortSyntax op may carry a targetSectionId for
+      // a sub-task (older client, or a client without the effect-level guard)
+      // — the reducer itself must reject it so section membership stays
+      // parent-only on every device.
+      const testState = stateWithSections(
+        createStateWithExistingTasks(['parent1', 'sub1'], [], [], []),
+        [{ id: 'sectionA', taskIds: [] }],
+      );
+      const stateWithSubTask = {
+        ...testState,
+        [TASK_FEATURE_NAME]: {
+          ...testState[TASK_FEATURE_NAME],
+          entities: {
+            ...testState[TASK_FEATURE_NAME].entities,
+            parent1: {
+              ...testState[TASK_FEATURE_NAME].entities.parent1,
+              subTaskIds: ['sub1'],
+            } as Task,
+            sub1: {
+              ...testState[TASK_FEATURE_NAME].entities.sub1,
+              parentId: 'parent1',
+            } as Task,
+          },
+        },
+      } as RootState;
+
+      const task = createMockTask({
+        id: 'sub1',
+        projectId: 'project1',
+        parentId: 'parent1',
+      });
+      const action = TaskSharedActions.applyShortSyntax({
+        task,
+        taskChanges: { title: 'Updated' },
+        targetSectionId: 'sectionA',
+      });
+
+      metaReducer(stateWithSubTask, action);
+      const resultState = mockReducer.calls.mostRecent().args[0];
+      // Title change still applies; section membership does not
+      expect(resultState[TASK_FEATURE_NAME].entities.sub1.title).toBe('Updated');
+      expect(resultState.section.entities.sectionA.taskIds).toEqual([]);
+    });
+
     it('should not duplicate the task when already in the target section', () => {
       const testState = stateWithSections(
         createStateWithExistingTasks(['task1'], [], [], []),

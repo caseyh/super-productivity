@@ -53,12 +53,22 @@ interface StateWithSections extends RootState {
  * position semantics as SectionActions.addTaskToSection with a null anchor).
  * No-ops when the target section doesn't exist or already holds the task
  * at the wanted state.
+ *
+ * Sub-tasks are rejected: section.taskIds is parent-only — the same invariant
+ * the drag enterPredicate (task-list.component.ts) and the effect's
+ * targetSectionId computation enforce, kept in lock-step here (cf.
+ * can-convert-task-to-sub-task.ts) because a persisted applyShortSyntax op
+ * replays on remote devices without re-running the effect.
  */
 const moveTaskToSection = (
   state: RootState,
   taskId: string,
   targetSectionId: string,
 ): RootState => {
+  const task = state[TASK_FEATURE_NAME].entities[taskId];
+  if (!task || task.parentId) {
+    return state;
+  }
   const sectionState = (state as StateWithSections)[SECTION_FEATURE_NAME];
   if (!sectionState) {
     return state;
