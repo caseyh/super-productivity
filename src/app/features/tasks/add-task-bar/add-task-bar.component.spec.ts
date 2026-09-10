@@ -64,6 +64,7 @@ describe('AddTaskBarComponent', () => {
   let mockTagService: jasmine.SpyObj<TagService>;
   let mockGlobalConfigService: jasmine.SpyObj<GlobalConfigService>;
   let mockStore: jasmine.SpyObj<Store>;
+  let mockAllSections: unknown[];
   let mockMatDialog: jasmine.SpyObj<MatDialog>;
   let mockSnackService: jasmine.SpyObj<SnackService>;
   let mockAddTaskBarIssueSearchService: jasmine.SpyObj<AddTaskBarIssueSearchService>;
@@ -223,9 +224,19 @@ describe('AddTaskBarComponent', () => {
       shortSyntax$: of({}),
       localization: () => ({ timeLocale: DEFAULT_LOCALE }),
     });
-    mockStore = jasmine.createSpyObj('Store', ['select', 'dispatch', 'pipe']);
+    mockStore = jasmine.createSpyObj('Store', [
+      'select',
+      'selectSignal',
+      'dispatch',
+      'pipe',
+    ]);
     mockStore.pipe.and.returnValue(of([]));
     mockStore.select.and.returnValue(of([]));
+    // The component reads selectAllSections through a signal; tests swap the
+    // backing value (see setupSectionAdd) rather than re-stubbing the spy,
+    // since the signal field is created once at construction.
+    mockAllSections = [];
+    mockStore.selectSignal.and.returnValue(((): unknown[] => mockAllSections) as any);
     mockMatDialog = jasmine.createSpyObj('MatDialog', ['open']);
     mockSnackService = jasmine.createSpyObj('SnackService', ['open']);
     mockAddTaskBarIssueSearchService = jasmine.createSpyObj(
@@ -505,7 +516,7 @@ describe('AddTaskBarComponent', () => {
     let addToSectionSpy: jasmine.Spy;
 
     const setupSectionAdd = (sections: unknown[]): void => {
-      mockStore.select.and.returnValue(of(sections));
+      mockAllSections = sections;
       mockTaskService.add.and.returnValue('task-1');
       addToSectionSpy = spyOn(TestBed.inject(SectionService), 'addTaskToSection');
       component.stateService.updateInputTxt('New task');

@@ -654,9 +654,14 @@ const matchSectionByTypedText = (
 // Standalone "/Section" token (word boundary before "/", no space after it) —
 // only meaningful when a context project is known. Nothing is stripped from
 // the title unless a section actually matches, so slashes in ordinary prose
-// ("either/or", "w/ milk") and URLs stay untouched.
+// ("either/or", "w/ milk") and URLs stay untouched. The capture deliberately
+// runs to the end of the line: matchSectionByTypedText's descending word-span
+// walk finds the section-name boundary, exactly like the "+Project/Section"
+// path — a character class would truncate titles containing chars it excludes
+// (round-5 review finding on PR #9014: "/Ship it!", "/C++", "/Design (v2)").
 const SHORT_SYNTAX_STANDALONE_SECTION_REG_EX = new RegExp(
-  `(?:^|\\s)\\${CH_SECTION}(?!\\s|\\${CH_SECTION})([^${ALL_SPECIAL}]+)`,
+  `(?:^|\\s)\\${CH_SECTION}(?!\\s|\\${CH_SECTION})(.+)`,
+  'g',
 );
 
 const parseStandaloneSectionTracked = (
@@ -667,24 +672,32 @@ const parseStandaloneSectionTracked = (
   if (!tracked.text || !contextProjectId) {
     return null;
   }
-  const rr = tracked.text.match(SHORT_SYNTAX_STANDALONE_SECTION_REG_EX);
-  if (!rr || !rr[1]) {
-    return null;
+  // Walk every slash token and use the first one that resolves: an earlier
+  // slash that matches no section ("review PR /9014 /Design") must fall
+  // through to a later real one (round-5 review finding on PR #9014). The
+  // greedy capture spans later slashes, so after a non-resolving candidate
+  // the scan resumes just past its slash rather than past the whole match.
+  const regEx = SHORT_SYNTAX_STANDALONE_SECTION_REG_EX;
+  regEx.lastIndex = 0;
+  let rr: RegExpExecArray | null;
+  while ((rr = regEx.exec(tracked.text)) !== null) {
+    // "(?:^|\s)" consumes at most one leading whitespace char, so the slash
+    // sits at index 0 or 1 of the match; the section text follows it directly
+    // (the lookahead forbids whitespace after the slash).
+    const slashPos = rr.index + (rr[0].startsWith(CH_SECTION) ? 0 : 1);
+    const section = matchSectionByTypedText(rr[1], contextProjectId, allSections);
+    if (!section) {
+      regEx.lastIndex = slashPos + 1;
+      continue;
+    }
+    const stripEnd = slashPos + 1 + section.typedText.length;
+    const ranges = tracked.rawRanges(slashPos, stripEnd);
+    tracked.remove(slashPos, stripEnd);
+    tidyAfterRemoval(tracked);
+    regEx.lastIndex = 0;
+    return { sectionId: section.sectionId, ranges };
   }
-  const section = matchSectionByTypedText(rr[1], contextProjectId, allSections);
-  if (!section) {
-    return null;
-  }
-  // Positional strip of exactly the matched "/<typed>" span. "(?:^|\s)"
-  // consumes at most one leading whitespace char, so the slash sits at index
-  // 0 or 1 of the match; the section text follows it directly (the lookahead
-  // forbids whitespace after the slash).
-  const slashPos = (rr.index as number) + (rr[0].startsWith(CH_SECTION) ? 0 : 1);
-  const stripEnd = slashPos + 1 + section.typedText.length;
-  const ranges = tracked.rawRanges(slashPos, stripEnd);
-  tracked.remove(slashPos, stripEnd);
-  tidyAfterRemoval(tracked);
-  return { sectionId: section.sectionId, ranges };
+  return null;
 };
 
 const parseProjectTracked = (
@@ -795,14 +808,16 @@ const parseProjectTracked = (
       // "+Project/Section": the left side of the slash was typed entirely as
       // a project reference, so match it with the same word-wise rules (the
       // last word may be a prefix), then resolve the section on the right.
+      // No emptiness guard needed on projectTitle: the project regex forbids
+      // whitespace right after "+" and slashIndex >= 1 here, so the left side
+      // always starts with a non-space char — the `slashIndex === 0` bail
+      // above is the single guard for an empty project part.
       const leftWords = toWords(projectTitle);
-      const leftProject = projectTitle.trim()
-        ? matchableProjects.find(
-            (p) =>
-              isFullyTypedProjectTitle(p, leftWords) ||
-              isPartiallyTypedProjectTitle(p, leftWords),
-          )
-        : undefined;
+      const leftProject = matchableProjects.find(
+        (p) =>
+          isFullyTypedProjectTitle(p, leftWords) ||
+          isPartiallyTypedProjectTitle(p, leftWords),
+      );
       if (leftProject) {
         const section = matchSectionByTypedText(sectionPart, leftProject.id, allSections);
         if (section) {

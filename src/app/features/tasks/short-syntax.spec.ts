@@ -2420,6 +2420,162 @@ describe('shortSyntax', () => {
         expect(r?.taskChanges.title).toBe('Task');
       });
     });
+
+    describe('round-5 review regressions (PR #9014)', () => {
+      // Section titles containing chars the old standalone character class
+      // accidentally excluded ("(", ")", "|", "+", "!") — the capture now runs
+      // to the end of the line and the word-span walk finds the boundary,
+      // exactly like the "+Project/Section" path.
+      let specialSections: Section[];
+      beforeEach(() => {
+        specialSections = [
+          ...sections,
+          {
+            id: 'V2SectionID',
+            contextId: 'WorkID',
+            contextType: 'PROJECT',
+            title: 'Design (v2)',
+            taskIds: [],
+          },
+          {
+            id: 'ShipItSectionID',
+            contextId: 'WorkID',
+            contextType: 'PROJECT',
+            title: 'Ship it!',
+            taskIds: [],
+          },
+          {
+            id: 'CSectionID',
+            contextId: 'WorkID',
+            contextType: 'PROJECT',
+            title: 'C',
+            taskIds: [],
+          },
+          {
+            id: 'CppSectionID',
+            contextId: 'WorkID',
+            contextType: 'PROJECT',
+            title: 'C++',
+            taskIds: [],
+          },
+        ] as any;
+      });
+
+      it('should match a standalone section whose title contains parentheses', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'x /Design (v2) y' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          specialSections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('V2SectionID');
+        expect(r?.taskChanges.title).toBe('x y');
+      });
+
+      it('should match a standalone section whose title contains "!"', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'x /Ship it! y' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          specialSections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('ShipItSectionID');
+        expect(r?.taskChanges.title).toBe('x y');
+      });
+
+      it('should pick "C++" over "C" when "/C++" is typed', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'fix /C++ crash' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          specialSections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('CppSectionID');
+        expect(r?.taskChanges.title).toBe('fix crash');
+      });
+
+      it('should still pick "C" (shortest title) when only "/C" is typed', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'fix /C crash' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          specialSections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('CSectionID');
+        expect(r?.taskChanges.title).toBe('fix crash');
+      });
+
+      it('should behave like the +Project/Section path for special-char titles', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'x +Work/Design (v2) y' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          specialSections,
+        );
+        expect(r?.projectId).toBe('WorkID');
+        expect(r?.sectionId).toBe('V2SectionID');
+        expect(r?.taskChanges.title).toBe('x y');
+      });
+
+      // A slash token that resolves no section must fall through to a later
+      // one instead of swallowing it.
+      it('should fall through a non-resolving slash token to a later real one', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'review PR /9014 /Design' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          sections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('DesignSectionID');
+        expect(r?.taskChanges.title).toBe('review PR /9014');
+      });
+
+      it('should leave the title untouched when no slash token resolves', async () => {
+        const t = { ...TASK, title: 'a /todo b /nope c' };
+        const r = await shortSyntax(
+          t,
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          sections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBeUndefined();
+        expect(r?.taskChanges.title ?? t.title).toBe('a /todo b /nope c');
+      });
+    });
   });
 
   // This group of tests address Chrono's parsing the format "<date> <month> <yy}>" as year

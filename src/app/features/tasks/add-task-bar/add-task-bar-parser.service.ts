@@ -1,6 +1,5 @@
 import { inject, Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
-import { firstValueFrom } from 'rxjs';
 import { Project } from '../../project/project.model';
 import { Tag } from '../../tag/tag.model';
 import { selectAllSections } from '../../section/store/section.selectors';
@@ -62,6 +61,9 @@ const isSameRepeat = (
 export class AddTaskBarParserService {
   private readonly _stateService = inject(AddTaskBarStateService);
   private readonly _store = inject(Store);
+  // Signal read instead of a per-parse subscribe/unsubscribe: this runs on
+  // every keystroke (round-5 review note on PR #9014).
+  private readonly _allSections = this._store.selectSignal(selectAllSections);
   private _previousParseResult: PreviousParseResult | null = null;
   private _parseRunId = 0;
   // Exactly which characters of which input the parser last consumed, so a
@@ -113,7 +115,7 @@ export class AddTaskBarParserService {
       return;
     }
 
-    const allSections = await firstValueFrom(this._store.select(selectAllSections));
+    const allSections = this._allSections();
     // Context for a standalone "/Section" token (no "+Project" typed) — read
     // BEFORE the parse so it reflects the selection the text was typed against
     // (the parsed section is re-validated against the final project below).

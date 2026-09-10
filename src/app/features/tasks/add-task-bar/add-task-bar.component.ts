@@ -49,7 +49,7 @@ import {
 } from 'rxjs/operators';
 import { IS_ANDROID_WEB_VIEW_TOKEN } from '../../../util/is-android-web-view';
 import { IosKeyboardService } from '../../../core/theme/ios-keyboard.service';
-import { BehaviorSubject, combineLatest, firstValueFrom, from, Observable } from 'rxjs';
+import { BehaviorSubject, combineLatest, from, Observable } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogConfirmComponent } from '../../../ui/dialog-confirm/dialog-confirm.component';
 import {
@@ -286,6 +286,8 @@ export class AddTaskBarComponent implements AfterViewInit, OnInit, OnDestroy {
     ),
     startWith([]),
   );
+
+  private readonly _allSections = this._store.selectSignal(selectAllSections);
 
   // The project a "/" section suggestion would apply to: the typed
   // "+Project" token when present, else the project the task will land in
@@ -660,11 +662,7 @@ export class AddTaskBarComponent implements AfterViewInit, OnInit, OnDestroy {
       // (undoneTasksBySection), so a backlogged task would carry an invisible
       // section membership.
       if (state.sectionId && state.projectId && !this.isAddToBacklog()) {
-        const targetSection = await firstValueFrom(
-          this._store
-            .select(selectAllSections)
-            .pipe(map((all) => all.find((s) => s.id === state.sectionId))),
-        );
+        const targetSection = this._allSections().find((s) => s.id === state.sectionId);
         // Write-site guard in lock-step with the reducer's own checks: the
         // section must still exist AND belong to the project the task was
         // just created in — a stale sectionId must never file a task into

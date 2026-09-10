@@ -2216,6 +2216,9 @@ describe('AddTaskBarParserService', () => {
     beforeEach(() => {
       const store = TestBed.inject(MockStore);
       store.overrideSelector(selectAllSections, [designSection] as never[]);
+      // The service reads the selector through a signal now — push the
+      // override through the mock store's state signal.
+      store.refreshState();
       liveState = makeState(defaultProject.id) as typeof liveState;
       mockStateService.state.and.callFake((() => liveState) as any);
       mockStateService.isAutoDetected.and.returnValue(true);
