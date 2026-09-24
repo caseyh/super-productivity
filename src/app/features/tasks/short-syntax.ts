@@ -615,6 +615,8 @@ const tidyAfterRemoval = (tracked: TrackedTitle): void => {
 // matches, so multi-word section names don't orphan their later words into
 // the title (round-3 review finding on PR #9014). Returns the exact typed
 // text to strip alongside the id.
+// \s+ (not just spaces) throughout: tabs or NBSPs inside a section name must
+// not leave residue either (round-4 review note on PR #9014).
 const matchSectionByTypedText = (
   typed: string,
   projectId: string,
@@ -625,25 +627,39 @@ const matchSectionByTypedText = (
   }
   const projectSections = allSections
     .filter((s) => s.contextId === projectId)
-    .sort((s1, s2) => s1.title.length - s2.title.length);
-  // End offsets of every leading word span. Internal spacing is preserved so
-  // the returned typedText is always a literal slice of the typed text
-  // (leading whitespace is the caller's to account for).
+    .sort((s1, s2) => s1.title.length - s2.title.length)
+    .map((s) => ({ id: s.id, squashedTitle: s.title.replace(/\s+/g, '').toLowerCase() }));
+  if (!projectSections.length) {
+    return undefined;
+  }
+  // A span can only prefix-match if its squashed text is no longer than the
+  // longest squashed section title, so stop collecting spans past that. This
+  // bounds the walk by section-title length instead of line length — the
+  // standalone path calls this once per slash token on the rest of the line
+  // (round-6 review finding on PR #9014: 2000-word lines took seconds) — and,
+  // unlike a word-count cap, keeps "/Des ign" → "Design" working.
+  const maxSquashedLength = Math.max(
+    ...projectSections.map((s) => s.squashedTitle.length),
+  );
+  // End offsets of the candidate leading word spans. Internal spacing is
+  // preserved so the returned typedText is always a literal slice of the
+  // typed text (leading whitespace is the caller's to account for).
   const body = typed.trimStart();
   const wordEnds: number[] = [];
   const wordRegEx = /\S+/g;
+  let squashedLength = 0;
   let wordMatch: RegExpExecArray | null;
   while ((wordMatch = wordRegEx.exec(body)) !== null) {
+    squashedLength += wordMatch[0].toLowerCase().length;
+    if (squashedLength > maxSquashedLength) {
+      break;
+    }
     wordEnds.push(wordMatch.index + wordMatch[0].length);
   }
   for (let i = wordEnds.length - 1; i >= 0; i--) {
     const typedText = body.slice(0, wordEnds[i]);
-    // \s+ (not just spaces): tabs or NBSPs inside a section name must not
-    // leave residue either (round-4 review note on PR #9014)
     const toMatch = typedText.replace(/\s+/g, '').toLowerCase();
-    const existing = projectSections.find(
-      (s) => s.title.replace(/\s+/g, '').toLowerCase().indexOf(toMatch) === 0,
-    );
+    const existing = projectSections.find((s) => s.squashedTitle.indexOf(toMatch) === 0);
     if (existing) {
       return { sectionId: existing.id, typedText };
     }

@@ -72,6 +72,14 @@ describe('AddTaskBarParserService', () => {
     ) as jasmine.SpyObj<AddTaskBarStateService>;
   });
 
+  // provideMockStore / overrideSelector set a result on the REAL memoized
+  // selectAllSections, and that result outlives this file: without the reset,
+  // later specs deriving from it (ProjectService.duplicateProject via
+  // selectSectionsByContextIdMap) see no sections at all.
+  afterEach(() => {
+    TestBed.inject(MockStore).resetSelectors();
+  });
+
   describe('parseAndUpdateText', () => {
     let mockConfig: ShortSyntaxConfig;
     let mockProjects: Project[];

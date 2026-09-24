@@ -2576,6 +2576,47 @@ describe('shortSyntax', () => {
         expect(r?.taskChanges.title ?? t.title).toBe('a /todo b /nope c');
       });
     });
+
+    describe('round-6 review regressions (PR #9014)', () => {
+      it('should still match a section name typed across a split word', async () => {
+        const r = await shortSyntax(
+          { ...TASK, title: 'x /Des ign y' },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          sections,
+          'WorkID',
+        );
+        expect(r?.sectionId).toBe('DesignSectionID');
+        expect(r?.taskChanges.title).toBe('x y');
+      });
+
+      // Every non-resolving slash token hands the rest of the line to the
+      // section matcher; its span walk must be bounded by section-title
+      // length, not line length (2000 words took ~3s before the bound).
+      it('should parse a long line full of slash tokens quickly', async () => {
+        const words = Array.from({ length: 2000 }, (_, i) =>
+          i % 10 === 9 ? `/path${i}` : `word${i}`,
+        );
+        const start = performance.now();
+        const r = await shortSyntax(
+          { ...TASK, title: `${words.join(' ')} /Design` },
+          CONFIG,
+          [],
+          projects,
+          undefined,
+          'combine',
+          false,
+          sections,
+          'WorkID',
+        );
+        expect(performance.now() - start).toBeLessThan(500);
+        expect(r?.sectionId).toBe('DesignSectionID');
+      });
+    });
   });
 
   // This group of tests address Chrono's parsing the format "<date> <month> <yy}>" as year
